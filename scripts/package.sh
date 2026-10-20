@@ -2,7 +2,7 @@
 # Build the release files: dist/betterframe-xp-<version>.tar.gz and dist/SHA256SUMS.
 # Only committed files go in (git archive), so the work folder's leftovers and tests stay out.
 # Run after the commit that the tag v<version> points to (HEAD is archived).
-#   sh scripts/package.sh 0.1.0
+#   sh scripts/package.sh 0.1.1
 set -eu
 cd "$(dirname "$0")/.."
 
