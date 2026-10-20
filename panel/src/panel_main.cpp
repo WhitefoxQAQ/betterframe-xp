@@ -535,9 +535,12 @@ void drawUi(cairo_surface_t* surface, const FontSet& fonts, const UiState& ui, s
     toggle(pen, streamX, 40, tr("PC の映像だけ", "PC video only"), value(ui, "streamOnly", 1) >= 0.5, hits, HitKind::StreamOnly);
     // 補足は右端でそろえる（英語は長く、左の決め打ちだと画面からはみ出す）
     const double noteX = kWidth - 40;
-    pen.text(noteX, 96, tr("OFF: Frame 単体のときも掛かる", "OFF: also applies when Frame is used alone"), 17, kSub, false, true);
-    pen.text(noteX, 118, tr("ON 推奨。OFF だと、Frame 単体で", "ON recommended. With OFF, choosing a dashboard"), 17, kWarn, false, true);
-    pen.text(noteX, 140, tr("ダッシュボードを選ぶと映像が乱れる", "on Frame alone can garble the video"), 17, kWarn, false, true);
+    // 144 Hz 推奨の注記（スイッチ列の下、右端そろえ）。低いリフレッシュレートでは映像が乱れる
+    pen.text(noteX, 92, tr("144 Hz 推奨。低リフレッシュレートでは映像が乱れる",
+                           "144 Hz recommended. Low refresh rates garble video"), 17, kWarn, false, true);
+    pen.text(noteX, 114, tr("OFF: Frame 単体のときも掛かる", "OFF: also applies when Frame is used alone"), 17, kSub, false, true);
+    pen.text(noteX, 136, tr("ON 推奨。OFF だと、Frame 単体で", "ON recommended. With OFF, choosing a dashboard"), 17, kWarn, false, true);
+    pen.text(noteX, 158, tr("ダッシュボードを選ぶと映像が乱れる", "on Frame alone can garble the video"), 17, kWarn, false, true);
     drawTabs(pen, ui, hits);
     switch (ui.tab) {
         case Tab::Quality: drawQuality(pen, ui, hits); break;

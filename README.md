@@ -1,6 +1,8 @@
 # BetterFrame XP
 
-Steam Frame で、PC から Steam Link で送られてくる映像に**シャープ（AMD CAS）を Frame 側で後掛け**する。VRChat の草や葉が「泥のように」つぶれるのを、少し目立たなくするための道具。
+English: [README.en.md](README.en.md)
+
+Steam Frame で、PC から Steam Link で送られてくる映像に**シャープ（AMD CAS）を Frame 側で後掛け**する。無線で少しぼやけた映像をくっきりさせ、VRChat の草や葉が「泥のように」つぶれるのを目立たなくするための道具。
 
 > **状態: 試作。** 作者の Frame 1 台でしか確認していない。効果が確認できているのはシャープだけ。入れても戻せる作りにしてあるが、動作の保証はない。
 
@@ -15,7 +17,7 @@ PC ─ エンコード ─ 無線 ─▶ Frame: デコード ─▶ コンポジ
 ## インストール（Frame 上で 1 コマンド）
 
 ```sh
-git clone <このリポジトリ> && cd betterframe-xp
+git clone https://github.com/omuomu0909/betterframe-xp.git && cd betterframe-xp
 sh contrib/setup.sh
 ```
 
@@ -54,6 +56,15 @@ betterframectl on
 
 - **「SteamVR の再起動が必要」**: 入れたり更新したりしたあと、SteamVR を再起動するまで内容は反映されない。パネルの上に橙色の帯で「SteamVR の再起動が必要」と出るので、遊んでいないときに再起動する（このツールは再起動しない）。再起動すると帯は消える。判定は、レイヤーを有効にしてあるかと、動いている vrcompositor が読み込んでいるレイヤーが最新の入れ替え後のものか、の比較。
 - **更新**: 「更新」タブで、GitHub の最新リリースを確認し、新しければ「この版に更新する」で入れ替えられる。ダウンロードしたファイルは SHA-256 を確かめてから入れる。入れ替えは別のプロセスで低い優先度で動き、パネルを閉じても続く。SteamVR は再起動しない（反映は次の SteamVR 起動から）。1 時間ごとの自動確認は同じタブで切れる。GitHub の公開リリースだけを見る（非公開リポジトリは確認できない）。手動で更新するなら、これまでどおり `git pull` して `sh contrib/install.sh`。
+効果の例（作者が Frame の画面を撮った写真。撮影条件: 高度なスーパーサンプリング オフ、解像度 250%、リフレッシュレート 144 Hz）:
+
+| before | after |
+|---|---|
+| ![before 1](docs/images/fx-before-1.jpg) | ![after 1](docs/images/fx-after-1.jpg) |
+| ![before 2](docs/images/fx-before-2.jpg) | ![after 2](docs/images/fx-after-2.jpg) |
+
+写真は 1 人・1 台で、見た目の評価は作者の目による。画面を撮った写真なので、走査線やモアレが写っている。
+
 - 効果は体感しにくい。**強さを上げても負荷は増えない「はず」**（シャープ量は最後の掛け算に使うだけで、読む画素も計算の量も同じ。負荷が変わるのは 0 か、0 より大きいかだけ。強さを変えての測定はしていない）。ただし作者の体感では「強めの設定ほどガクッとなりやすい」で、式のうえの予想と**食い違っている（未解決）**。強さを上げて引っかかりが増えたら下げてほしい。詳しくは [docs/STUTTER.md](docs/STUTTER.md) の A-3。
 - 効いているかは、`betterframectl set showSplit 1` で各目の中央に線を引き、左は素通し・右は処理後で見比べる。
 - 値の意味と、**どれが効いていると言えるか**は [設定リファレンス](docs/SETTINGS.md)。

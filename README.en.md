@@ -1,0 +1,112 @@
+# BetterFrame XP
+
+Japanese: [README.md](README.md)
+
+On Steam Frame, this applies AMD CAS sharpening on the Frame side to the video that the PC sends over Steam Link. It makes the slightly blurry wireless video sharper, and makes the "smeared like mud" look of grass and leaves in VRChat a little less noticeable.
+
+> The docs under `docs/` are in Japanese for now.
+
+> **Status: prototype.** Tested only on one author's Frame. The only effect confirmed so far is sharpening. It is built so it can be removed, but it is not guaranteed to work.
+
+## Why on the Frame side
+
+Over wireless, the video is compressed, and fine patterns are discarded first. Discarded detail cannot be recovered. If you sharpen on the PC, the emphasized detail takes encoder bits again. **If you apply it after decoding (on the Frame), it uses no extra bits.** For details, see the [guide](docs/GUIDE.md#映像が通る道pc--frame) (Japanese).
+
+```
+PC ─ encode ─ wireless ─▶ Frame: decode ─▶ compositor ─▶ ★sharpen here ─▶ display
+```
+
+## Install (one command on the Frame)
+
+```sh
+git clone https://github.com/omuomu0909/betterframe-xp.git && cd betterframe-xp
+sh contrib/setup.sh
+```
+
+The script checks, builds (about a minute), installs, and enables. If something is missing, it stops without changing anything and tells you why. To check only, run `sh contrib/setup.sh --check`.
+
+Then **restart SteamVR while you are not playing** (`setup.sh` does not restart it).
+
+```sh
+~/.local/bin/betterframectl status   # "loaded in vrcompositor" means success
+```
+
+On the PC side, turn **off** sharpening before encoding (`useSharpening`) in SteamVR. Running both applies it twice.
+
+Requirements: Steam Frame (SteamOS, aarch64). Root is not needed. The build tools were already included in SteamOS 0.5.6. The dashboard panel is installed and enabled too. It needs a Japanese font (`noto-cjk` and similar); if that is missing, `setup.sh` stops. To skip the panel, use `--no-panel`. The panel's text is Japanese only for now.
+
+## Usage
+
+Look of the panel (images made with `panel/tools/panel_preview.py --shots`):
+
+| Quality | Update | Restart notice |
+|---|---|---|
+| ![Quality tab](docs/images/panel-quality-ja.png) | ![Update tab](docs/images/panel-update-ja.png) | ![Restart needed](docs/images/panel-restart-ja.png) |
+
+These are not screenshots from the device. They are mockups of the panel's HTML, with default values. The load field is where measured values appear on the device.
+
+- **The "BetterFrame XP" panel on the dashboard**: adjust the look while you watch it. Tabs: Quality / Experimental / SteamVR settings / Update (the labels are in Japanese). The top right has the switches "Enabled", "Side-by-side", and "PC video only". The Quality tab has sharpness, center weight, and presets. The Experimental tab is split into sections for deband, sharpening assist, and grain. Sub-settings under the vertical line have no effect when that section's amount (sharpen, deband, or grain amount) is 0. Only the switches on the SteamVR settings tab change the SteamVR settings on the Frame itself. Each tab's Tips explain what turning each switch off does.
+- When you do not need the panel, hover over the BetterFrame XP icon in the icon bar under the dashboard and press "Close". The panel program exits, and **"Enabled" turns OFF** (the `enabled` setting becomes 0, so sharpening and the rest pass through). This prevents the effect from staying on with no screen to control it. Other values do not change. The panel appears again at the next SteamVR start, but "Enabled" stays OFF, so turn it on yourself when you want to use it. To keep it from appearing at all, run `betterframectl panel-off`.
+- To open it again after closing, pick "BetterFrame XP" from the "+" button list on the dashboard. (Install places a `.desktop` file and an icon in `~/.local/share/applications/`. If it is already running, nothing happens.) After it opens, turn "Enabled" on in the top right.
+- Or from the command line:
+
+```sh
+betterframectl set sharpenAmount 1.0   # sharpening amount (0 means none)
+betterframectl off                     # pass through immediately
+betterframectl on
+```
+
+- **"SteamVR restart required"**: after you install or update, the change does not take effect until SteamVR restarts. An orange band at the top of the panel shows "SteamVR restart required". Restart while you are not playing. This tool does not restart SteamVR itself. The band disappears after a restart. The check compares whether the layer is enabled with whether the running vrcompositor has loaded the latest layer from after the install.
+- **Update**: on the Update tab, the panel checks the latest GitHub release. If there is a newer one, "Update to this version" replaces the installed files. The downloaded file's SHA-256 is verified before it is installed. The replacement runs in a separate process at low priority and continues even if you close the panel. SteamVR is not restarted, so the change takes effect at the next SteamVR start. Automatic checks every hour can be turned off on the same tab. Only public GitHub releases can be checked; a private repository cannot be seen. To update by hand, run `git pull` and then `sh contrib/install.sh`, as before.
+Example of the effect (photos the author took of the Frame's display. Conditions: advanced supersampling off, resolution 250%, refresh rate 144 Hz):
+
+| before | after |
+|---|---|
+| ![before 1](docs/images/fx-before-1.jpg) | ![after 1](docs/images/fx-after-1.jpg) |
+| ![before 2](docs/images/fx-before-2.jpg) | ![after 2](docs/images/fx-after-2.jpg) |
+
+These are from one author on one device, judged by eye. They are photos of a screen, so scan lines and moire show.
+
+- The effect is hard to see. **Raising the strength should not raise the load, in theory.** The sharpening amount is used only in the final multiplication, so the pixels read and the amount of computation are the same. The load changes only between 0 and above 0. Changing the strength has not been measured. However, the author found that stronger settings tended to cause a sudden hitch. This **does not match the expectation from the formula, and it is unresolved**. If raising the strength adds hitches, lower it. See A-3 in [docs/STUTTER.md](docs/STUTTER.md) (Japanese).
+- To check whether it is working, run `betterframectl set showSplit 1`. This draws a line down the center of each eye: the left side is passed through, and the right side is processed.
+- For what each value means, and **which effects can be said to be confirmed**, see the [settings reference](docs/SETTINGS.md) (Japanese).
+- The docs separate what a change "should" do (predictions from formulas and code) from what the author **actually experienced** (one author, one Frame). When others try this, please treat the first as a guide.
+
+## Revert
+
+```sh
+betterframectl disable     # do not load it from the next SteamVR start
+betterframectl uninstall   # remove everything (with SteamVR running)
+```
+
+If SteamVR keeps failing to start, there is also a mechanism that removes the layer automatically. See the [guide](docs/GUIDE.md#起動に失敗したとき自動ガード) (Japanese).
+
+## Things to know
+
+> **Caution: if you raise the settings too high, the Frame's GPU load increases, and hitches (stutter) may occur.** As the load rises, the Frame's temperature rises too, and the fan may spin. **Battery drain also gets faster.** Watch the "Load" number (GPU ms) under the panel, and do not push the settings too far. For the types of stutter, see [docs/STUTTER.md](docs/STUTTER.md) (Japanese).
+
+- **The current build has not been checked inside the headset.** It is at the stage of being checked after a SteamVR restart.
+- **At 72 Hz or 80 Hz, sharpening may cause hitches at regular intervals.** This was seen on the author's one Frame. The cause is not yet known. **Use 144 Hz, or set `sharpenAmount` to 0 at 72 or 80 Hz.** The author's notes say that turning sharpening off stopped the hitches. See section F of [docs/STUTTER.md](docs/STUTTER.md) (Japanese).
+- The panel's "gaze correction" switch is the only one that writes to **SteamVR's settings** (two Frame eye-tracking correction settings) rather than to this layer. It writes only when pressed. The original values are saved first, and `uninstall` restores them. In the author's environment, turning it off reduced the wobble. That is one person's impression on one device.
+- Lost detail cannot be recreated. This is not super-resolution. Raising `sharpenAmount` above 1 tends to produce black-and-white outlines along edges.
+- An OS or SteamVR update may break it.
+- The Experimental tab (deband, grain, and so on) has not been evaluated enough visually.
+- **Changing the deband amount can cause the video to break up.** This is also noted in the Experimental tab. If that happens, set `debandAmount` back to 0. The conditions and the cause have not been investigated yet.
+
+## Further reading
+
+All of these are in Japanese.
+
+| Document | Contents |
+|---|---|
+| [docs/GUIDE.md](docs/GUIDE.md) | Detailed guide: the video path, a list of where files go, technical notes on each correction, how to revert, known issues |
+| [docs/SETTINGS.md](docs/SETTINGS.md) | List of settings, and what has and has not been confirmed |
+| [docs/STUTTER.md](docs/STUTTER.md) | Six kinds of "hitch", and which ones this tool does and does not affect. How to tell them apart when a hitch appears |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Implementation notes: layer, video detection, measurement |
+| [THIRD_PARTY.md](THIRD_PARTY.md) | Code this project is based on, and its licenses |
+
+## License
+
+MIT License ([LICENSE](LICENSE)). Copyright (c) 2026 omuomu0909.
+
+Some of the code this project is based on is under other licenses. See [THIRD_PARTY.md](THIRD_PARTY.md) and the `LICENSE` in each directory. The layer is zlib, parts of the panel are MIT, the OpenVR headers are BSD-3-Clause, and CAS and deband are MIT.

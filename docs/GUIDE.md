@@ -83,7 +83,7 @@ PC で描いた映像が目に届くまでと、このレイヤーが割り込�
 1 コマンドで済む。
 
 ```sh
-git clone <このリポジトリ> && cd betterframe-xp
+git clone https://github.com/omuomu0909/betterframe-xp.git && cd betterframe-xp
 sh contrib/setup.sh                  # 確認 → ビルド → 導入 → 有効化（パネルも）
 # → 遊んでいないときに SteamVR を再起動する（1 回でレイヤーとパネルの両方が有効になる）
 ~/.local/bin/betterframectl status   # "loaded in vrcompositor" と出れば成功
