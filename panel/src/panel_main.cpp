@@ -223,13 +223,15 @@ void drawPresets(const Pen& pen, bool beta, double x, double y, std::vector<Hit>
 
 /** 設定を上げすぎたときの注意（画質タブ）。負荷カードの上に 1 行で置く。 */
 void drawCaution(const Pen& pen) {
-    pen.roundedRect(24, 678, kWidth - 48, 70, 10);
+    pen.roundedRect(24, 662, kWidth - 48, 86, 10);
     pen.color(kCard);
     cairo_fill(pen.cr);
-    pen.text(44, 704, tr("注意: 設定を上げすぎると Frame の負荷が高まり、ガクッが出ることがある。温度が上がりファンが動くことも",
+    pen.text(44, 686, tr("注意: 設定を上げすぎると Frame の負荷が高まり、ガクッが出ることがある。温度が上がりファンが動くことも",
                          "Caution: high settings add load on Frame and can cause stutter, heat, and fan noise."), 19, kWarn);
-    pen.text(44, 734, tr("負荷が高いほど、Frame のバッテリーの消費も早くなる",
+    pen.text(44, 712, tr("負荷が高いほど、Frame のバッテリーの消費も早くなる",
                          "The higher the load, the faster Frame's battery drains."), 19, kWarn);
+    pen.text(44, 738, tr("144 Hz 推奨。低リフレッシュレートでは映像が乱れる",
+                         "144 Hz recommended. Low refresh rates garble video"), 19, kWarn);
 }
 
 /** key の項目を、ラベルの x を指定してスライダーとして描く（画質タブの段落ごとに使う）。 */
@@ -284,8 +286,8 @@ void drawSteamVr(const Pen& pen, const UiState& ui, std::vector<Hit>& hits) {
     // このタブのスイッチだけが、このツールの外（Frame の SteamVR の設定）を書き換える
     heading(pen, 176, tr("Frame の SteamVR の設定", "Frame's SteamVR settings"),
             tr("BetterFrame XP ではなく、SteamVR 本体の設定", "Not BetterFrame XP itself, but SteamVR's own settings"));
-    pen.text(40, 214, tr("このタブのスイッチは、押したときだけ Frame の SteamVR の設定を書き換える",
-                         "The switches on this tab rewrite Frame's SteamVR settings only when pressed"), 20, kWarn);
+    pen.text(40, 214, tr("このタブのスイッチは、Frame の SteamVR の設定を書き換える",
+                         "The switches on this tab rewrite Frame's SteamVR settings"), 20, kWarn);
     pen.text(40, 242, tr("最初の値は記録してあり、アンインストールで元に戻る。Valve が設定画面から外した項目",
                          "The first values are saved, and uninstalling restores them. Items Valve removed from the settings screen."), 17, kSub);
 
@@ -331,8 +333,8 @@ void drawSteamVr(const Pen& pen, const UiState& ui, std::vector<Hit>& hits) {
     pen.text(kReasonX, 680, tr("GPU に余裕があれば高いほうが、圧縮でぼやっとする感覚が減る",
                                "If your GPU has headroom, higher means less of the compression blur."), 17, kSub);
     pen.text(40, 714, tr("リフレッシュレート: 144 Hz", "Refresh rate: 144 Hz"), 20, kText);
-    pen.text(kReasonX, 714, tr("144 Hz 以外はまだ安定しない（72 / 80 Hz で確認。90〜120 Hz は未確認）",
-                               "Other than 144 Hz, still unstable (seen at 72 / 80 Hz; 90-120 Hz untested)"), 17, kWarn);
+    pen.text(kReasonX, 714, tr("144 Hz と 120 Hz 以外はまだ安定しない",
+                               "Other than 144 and 120 Hz, still unstable"), 17, kWarn);
 }
 
 void drawExperimental(const Pen& pen, const UiState& ui, std::vector<Hit>& hits) {
@@ -527,20 +529,23 @@ void drawUi(cairo_surface_t* surface, const FontSet& fonts, const UiState& ui, s
     // 右上のスイッチ（左から 有効・左右比較・PC の映像だけ）。次の位置は文字幅で決める（英語は長い）
     const char* enabledLabel = tr("有効", "Enabled");
     const char* splitLabel = tr("左右比較", "Split compare");
-    const double splitX = 420 + 78 + pen.measure(enabledLabel, 22) + 30;
-    const double streamX = splitX + 78 + pen.measure(splitLabel, 22) + 30;
+    // 「PC の映像だけ」の右端を、右の注記の右端（kWidth - 40）にそろえ、残りの余白を 3 つの間で等分する
+    const char* streamLabel = tr("PC の映像だけ", "PC video only");
+    const double enabledW = 78 + pen.measure(enabledLabel, 22);
+    const double splitW = 78 + pen.measure(splitLabel, 22);
+    const double streamW = 78 + pen.measure(streamLabel, 22);
+    const double gap = ((kWidth - 40) - 420 - enabledW - splitW - streamW) / 2;
+    const double splitX = 420 + enabledW + gap;
+    const double streamX = splitX + splitW + gap;
     toggle(pen, 420, 40, enabledLabel, value(ui, "enabled", 1) >= 0.5, hits, HitKind::Enabled);
     toggle(pen, splitX, 40, splitLabel, value(ui, "showSplit", 0) >= 0.5, hits, HitKind::ShowSplit);
     // PC の映像が描かれているフレームだけに掛ける。ホーム・ダッシュボードのフレームは素通しにする。
-    toggle(pen, streamX, 40, tr("PC の映像だけ", "PC video only"), value(ui, "streamOnly", 1) >= 0.5, hits, HitKind::StreamOnly);
+    toggle(pen, streamX, 40, streamLabel, value(ui, "streamOnly", 1) >= 0.5, hits, HitKind::StreamOnly);
     // 補足は右端でそろえる（英語は長く、左の決め打ちだと画面からはみ出す）
     const double noteX = kWidth - 40;
-    // 144 Hz 推奨の注記（スイッチ列の下、右端そろえ）。低いリフレッシュレートでは映像が乱れる
-    pen.text(noteX, 92, tr("144 Hz 推奨。低リフレッシュレートでは映像が乱れる",
-                           "144 Hz recommended. Low refresh rates garble video"), 17, kWarn, false, true);
-    pen.text(noteX, 114, tr("OFF: Frame 単体のときも掛かる", "OFF: also applies when Frame is used alone"), 17, kSub, false, true);
-    pen.text(noteX, 136, tr("ON 推奨。OFF だと、Frame 単体で", "ON recommended. With OFF, choosing a dashboard"), 17, kWarn, false, true);
-    pen.text(noteX, 158, tr("ダッシュボードを選ぶと映像が乱れる", "on Frame alone can garble the video"), 17, kWarn, false, true);
+    pen.text(noteX, 92, tr("OFF: Frame 単体のときも掛かる", "OFF: also applies when Frame is used alone"), 17, kSub, false, true);
+    pen.text(noteX, 114, tr("ON 推奨。OFF だと、Frame 単体で", "ON recommended. With OFF, choosing a dashboard"), 17, kWarn, false, true);
+    pen.text(noteX, 136, tr("ダッシュボードを選ぶと映像が乱れる", "on Frame alone can garble the video"), 17, kWarn, false, true);
     drawTabs(pen, ui, hits);
     switch (ui.tab) {
         case Tab::Quality: drawQuality(pen, ui, hits); break;

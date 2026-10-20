@@ -8,6 +8,21 @@ On Steam Frame, this applies AMD CAS sharpening on the Frame side to the video t
 
 > **Status: prototype.** Tested only on one author's Frame. The only effect confirmed so far is sharpening. It is built so it can be removed, but it is not guaranteed to work.
 
+## Recommended SteamVR settings
+
+Settings that worked well on the author's one Frame (one person, one device; they may not suit everyone). The effect-example photos below were taken with advanced supersampling off, resolution 250%, and 144 Hz.
+
+| Setting | Recommended | Where | Why |
+|---|---|---|---|
+| Advanced supersampling | Off | SteamVR on the PC | Off looked clearer and was lighter (the author's impression) |
+| Resolution | 200–300% (author: 250%) | SteamVR on the PC | If the GPU has headroom, higher means less of the compression blur (the author's impression) |
+| Refresh rate | 144 Hz (120 Hz is also fine) | SteamVR on the PC | At other rates, sharpening may cause hitches (see "Things to know" below) |
+| Sharpening before encoding (`useSharpening`) | Off | SteamVR on the PC | It would stack with this tool's sharpening |
+| Depth correction (gaze-aware reprojection) | OFF | The panel's "SteamVR settings" tab on the Frame | The change that reduced the wobble most on the author's setup. No downside noticed so far (one person, one device) |
+| Eye position correction | OFF | Same | Stable with OFF together with depth correction (effect alone not verified). OFF matches Valve's default |
+
+Other settings (target bitrate, streamed video width, and so on) have not been separated out enough to recommend.
+
 ## Why on the Frame side
 
 Over wireless, the video is compressed, and fine patterns are discarded first. Discarded detail cannot be recovered. If you sharpen on the PC, the emphasized detail takes encoder bits again. **If you apply it after decoding (on the Frame), it uses no extra bits.** For details, see the [guide](docs/GUIDE.md#映像が通る道pc--frame) (Japanese).
@@ -67,7 +82,7 @@ Example of the effect (photos the author took of the Frame's display. Conditions
 
 These are from one author on one device, judged by eye. They are photos of a screen, so scan lines and moire show.
 
-- The effect is hard to see. **Raising the strength should not raise the load, in theory.** The sharpening amount is used only in the final multiplication, so the pixels read and the amount of computation are the same. The load changes only between 0 and above 0. Changing the strength has not been measured. However, the author found that stronger settings tended to cause a sudden hitch. This **does not match the expectation from the formula, and it is unresolved**. If raising the strength adds hitches, lower it. See A-3 in [docs/STUTTER.md](docs/STUTTER.md) (Japanese).
+- The effect is visible to the eye. **Raising the strength should not raise the load, in theory.** The sharpening amount is used only in the final multiplication, so the pixels read and the amount of computation are the same. The load changes only between 0 and above 0. Changing the strength has not been measured. However, the author found that stronger settings tended to cause a sudden hitch. This **does not match the expectation from the formula, and it is unresolved**. If raising the strength adds hitches, lower it. See A-3 in [docs/STUTTER.md](docs/STUTTER.md) (Japanese).
 - To check whether it is working, run `betterframectl set showSplit 1`. This draws a line down the center of each eye: the left side is passed through, and the right side is processed.
 - For what each value means, and **which effects can be said to be confirmed**, see the [settings reference](docs/SETTINGS.md) (Japanese).
 - The docs separate what a change "should" do (predictions from formulas and code) from what the author **actually experienced** (one author, one Frame). When others try this, please treat the first as a guide.
@@ -86,7 +101,7 @@ If SteamVR keeps failing to start, there is also a mechanism that removes the la
 > **Caution: if you raise the settings too high, the Frame's GPU load increases, and hitches (stutter) may occur.** As the load rises, the Frame's temperature rises too, and the fan may spin. **Battery drain also gets faster.** Watch the "Load" number (GPU ms) under the panel, and do not push the settings too far. For the types of stutter, see [docs/STUTTER.md](docs/STUTTER.md) (Japanese).
 
 - **The current build has not been checked inside the headset.** It is at the stage of being checked after a SteamVR restart.
-- **At 72 Hz or 80 Hz, sharpening may cause hitches at regular intervals.** This was seen on the author's one Frame. The cause is not yet known. **Use 144 Hz, or set `sharpenAmount` to 0 at 72 or 80 Hz.** The author's notes say that turning sharpening off stopped the hitches. See section F of [docs/STUTTER.md](docs/STUTTER.md) (Japanese).
+- **At refresh rates other than 144 Hz and 120 Hz, sharpening may cause hitches at regular intervals.** This was seen at 72 Hz and 80 Hz on the author's one Frame. The cause is not yet known. **Use 144 Hz or 120 Hz, or set `sharpenAmount` to 0 at other rates.** The author's notes say that turning sharpening off stopped the hitches. See section F of [docs/STUTTER.md](docs/STUTTER.md) (Japanese).
 - The panel's "gaze correction" switch is the only one that writes to **SteamVR's settings** (two Frame eye-tracking correction settings) rather than to this layer. It writes only when pressed. The original values are saved first, and `uninstall` restores them. In the author's environment, turning it off reduced the wobble. That is one person's impression on one device.
 - Lost detail cannot be recreated. This is not super-resolution. Raising `sharpenAmount` above 1 tends to produce black-and-white outlines along edges.
 - An OS or SteamVR update may break it.

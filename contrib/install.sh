@@ -19,8 +19,14 @@ ninja -C build
 
 install -d "$data_dir/lib" "$conf_dir" "$layer_dir" "$bin_dir" "$unit_dir"
 # Copy to a temp name then rename, so a running vrcompositor keeps its mapping.
-install -m755 build/src/libbetterframexp.so "$data_dir/lib/libbetterframexp.so.new"
-mv -f "$data_dir/lib/libbetterframexp.so.new" "$data_dir/lib/libbetterframexp.so"
+# Skip it when the content is unchanged: a rename leaves the running vrcompositor holding a
+# "(deleted)" file, and the panel then asks for a SteamVR restart that would change nothing.
+if cmp -s build/src/libbetterframexp.so "$data_dir/lib/libbetterframexp.so"; then
+  echo "layer: unchanged, not replaced"
+else
+  install -m755 build/src/libbetterframexp.so "$data_dir/lib/libbetterframexp.so.new"
+  mv -f "$data_dir/lib/libbetterframexp.so.new" "$data_dir/lib/libbetterframexp.so"
+fi
 install -m755 "$src_dir/contrib/betterframectl" "$bin_dir/betterframectl"
 # Start-failure guard: betterframectl enable wires it into the steamvr.service drop-in.
 install -d "$HOME/.local/libexec"

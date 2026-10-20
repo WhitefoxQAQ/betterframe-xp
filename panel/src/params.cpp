@@ -46,8 +46,8 @@ const std::vector<ParamSpec>& paramSpecs() {
     // 範囲はレイヤー（effect_postfx.cpp の readPostFxParams）の clamp に合わせる
     static const std::vector<ParamSpec> specs = {
         {"sharpenAmount",   "シャープ量",           "Sharpen amount",        0.0, 2.0,  0.05, 2,
-         "輪郭をくっきりさせる（効果は体感しにくい）。負荷は増えない「はず」だが体感では要確認。上げすぎると縁が白黒",
-         "Crisper outlines (subtle). Should add no load, but check by eye. Too high gives black-and-white edges."},
+         "輪郭をくっきりさせる。負荷は増えない「はず」だが体感では要確認。上げすぎると縁が白黒",
+         "Crisper outlines. Should add no load, but check by eye. Too high gives black-and-white edges."},
         {"sharpness",       "シャープの鋭さ",       "Sharpness",             0.0, 1.0,  0.05, 2,
          "シャープの効きの鋭さ。上げるほど強くなり、ノイズも目立ちやすい",
          "How sharp the sharpening is. Higher is stronger, and noise shows more easily."},
