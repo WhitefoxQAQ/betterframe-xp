@@ -632,14 +632,14 @@ def main():
             sys.exit("画像を撮るブラウザ（Edge / Chrome）が見つからない")
         slugs = [f[4:].lower() for f in funcs]  # drawQuality -> quality
         outdir = Path(a.shots)
-        # 通常の画像（再起動の帯なし・更新タブは「新しい版がある」の見本）
+        # 通常の画像（再起動の帯なし・更新タブは --update-sample の見本）
         normal = out.with_name(out.stem + "-shots.html")
-        normal.write_text(build_html(a, raw, specs, presets, values, funcs, start, False, "available", gaze)[0], encoding="utf-8")
+        normal.write_text(build_html(a, raw, specs, presets, values, funcs, start, False, a.update_sample, gaze)[0], encoding="utf-8")
         shots = [(f"panel-{slug}-{lang}.png", i, lang) for lang in ("ja", "en") for i, slug in enumerate(slugs)]
         ok = take_shots(normal, shots, outdir, browser)
         # 再起動の帯つき（画質タブ）
         banner = out.with_name(out.stem + "-shots-restart.html")
-        banner.write_text(build_html(a, raw, specs, presets, values, funcs, start, True, "available", gaze)[0], encoding="utf-8")
+        banner.write_text(build_html(a, raw, specs, presets, values, funcs, start, True, a.update_sample, gaze)[0], encoding="utf-8")
         ok = take_shots(banner, [(f"panel-restart-{lang}.png", 0, lang) for lang in ("ja", "en")], outdir, browser) and ok
         print("画像を書いた" if ok else "警告: 撮れなかった画像がある")
     if a.open:
