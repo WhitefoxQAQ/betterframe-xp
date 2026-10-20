@@ -273,7 +273,9 @@ class Scene:
         """drawUpdateStatus の写し（更新タブの版・ボタン・進み）。状態は実機では確認の結果で決まるので、見本の状態で描く。"""
         tr = (lambda ja, en: en if self.english else ja)
         st = self.update_sample
-        cur, latest = "0.1.0", "0.2.0"
+        cur = (ROOT / "VERSION").read_text(encoding="utf-8").strip()  # 配る版。版を上げても見本が古くならない
+        major, minor, _patch = (int(n) for n in cur.split("."))
+        latest = f"{major}.{minor + 1}.0"  # 「新しい版がある」の見本用
         self.text(40, 232, tr("いまの版", "Installed"), 21, "kSub")
         self.text(200, 232, cur, 26, "kText", bold=True)
         self.text(40, 274, tr("最新の版", "Latest"), 21, "kSub")
@@ -298,7 +300,7 @@ class Scene:
         x = 40 + button(40, tr("今すぐ確認", "Check now"), False, not running) + 14
         if available:
             button(x, tr("この版に更新する", "Update to this version"), True, not running)
-            self.text(40, 384, tr("リリースのページ: ", "Release page: ") + "https://github.com/omuomu0909/betterframe-xp/releases/tag/v0.2.0", 17, "kSub")
+            self.text(40, 384, tr("リリースのページ: ", "Release page: ") + "https://github.com/omuomu0909/betterframe-xp/releases/tag/v" + latest, 17, "kSub")
         if running:
             self.text(40, 436, tr("ビルドして入れ替え中（数分かかる）", "Building and installing (takes a few minutes)") + "…", 22, "kAccent", bold=True)
             self.text(40, 466, tr("この画面を閉じても続く", "It keeps going if you close this screen"), 19, "kSub")
