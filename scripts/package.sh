@@ -11,7 +11,7 @@ ver=${1:?usage: sh scripts/package.sh VERSION}
 
 name="betterframe-xp-$ver.tar.gz"
 mkdir -p dist
-git archive --format=tar.gz -o "dist/$name" HEAD -- VERSION LICENSE THIRD_PARTY.md README.md \
+git archive --format=tar.gz -o "dist/$name" HEAD -- VERSION LICENSE THIRD_PARTY.md README.md CHANGELOG.md \
     layer panel contrib ':(exclude)panel/tests'
 (cd dist && sha256sum "$name" >SHA256SUMS)
 echo "dist/$name"

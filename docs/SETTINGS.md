@@ -87,7 +87,7 @@
 - `betterframectl stats`（またはパネル）で `gpuMsAvg` を見る。`streamOnly = 1` なら、映像が出ている間は約 1.4 ms（運用値）、無い間は 0.3〜0.6 ms 程度になる。
 - 映像が出ているのに `gpuMsAvg` が 0.6 ms 前後のままなら、映像を検出できていない。`$XDG_RUNTIME_DIR/betterframe-xp.log` に `PC video on screen: effects on` / `gone: effects off` が出ているか見る。出ていなければ `streamOnly = 0` に戻す。
 
-## パネルのタブと、設定の整理（2026-10-19）
+## パネルのタブと、設定の整理
 
 | タブ | 中身 |
 |---|---|

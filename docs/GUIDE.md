@@ -340,7 +340,7 @@ betterframectl gaze eye off          # 目の位置の補正をオフ（on で�
 ## 既知の問題と注意
 
 - **設定を上げすぎると、Frame の GPU 負荷が高まり、ガクッが出る可能性がある。** 負荷が上がると Frame の温度も上がり、ファンが動くことがある。作者の Frame で、重い設定ほど遅れたフレームが増えたことは確認している（[STUTTER.md](STUTTER.md) の A-1）。ファンの動きは、このツールでは測っていない。
-- **現在の版（lib sha `509ed396…`、2026-10-19 に Frame へ入れた）はヘッドセット内で未確認**。SteamVR を再起動すると読み込まれる。`betterframectl status` で `509ed396` が出ることを確認する。それ以前の版（sha `549cffc8…`）までは実機で確認している。
+- **今のビルドは、ヘッドセット内で未確認**。SteamVR を再起動すると読み込まれる。`betterframectl status` に `loaded in vrcompositor` と出れば、読み込まれている。
 - **画面を 144 Hz と 120 Hz 以外にすると、シャープを掛けているときに一定の間隔で引っかかることがある。** 確認したのは 72 Hz と 80 Hz。作者の Frame では、72 Hz で 4 フレームに 1 回、コンポジタの present 待ちが失敗していた。シャープを切ると止まった。原因は未確定。144 Hz か 120 Hz で使うか、それ以外では `sharpenAmount` を 0 にする。→ [STUTTER.md](STUTTER.md) の F
 - 「補正の技術説明」の中で、効果の個別の評価が無いものは `SETTINGS.md` の △ / ○ のとおり。実験的な機能は、見た目の評価が十分ではない。
 - ホーム / ダッシュボードで頭を振ったときの小さなガクッは、このレイヤーを `streamOnly` で止めても残る。作者の調べでは、残りの大半はコンポジタの画面切り替え時の仕事（シェーダー生成、パススルー接続など）と重なっている。「通常プレイの範囲内」と作者は判断した。（調査の記録はこのリポジトリには含めていない）
@@ -355,9 +355,9 @@ betterframectl gaze eye off          # 目の位置の補正をオフ（on で�
 | パス | 内容 |
 |---|---|
 | `layer/` | Vulkan レイヤー本体（C++、meson）。技術説明は [docs/ARCHITECTURE.md](ARCHITECTURE.md) |
-| `panel/` | ダッシュボードのパネル（C++、cmake、OpenVR オーバーレイ）。案は [docs/PANEL.md](PANEL.md) |
+| `panel/` | ダッシュボードのパネル（C++、cmake、OpenVR オーバーレイ）。 |
 | `contrib/` | `install.sh`、`betterframectl`、既定の `params.conf`、パネルの systemd ユニット |
-| `docs/` | 技術説明、設定リファレンス、パネル案、調査アーカイブ |
+| `docs/` | 技術説明、設定リファレンス、「ガクッ」の種類 |
 
 ## ライセンス
 

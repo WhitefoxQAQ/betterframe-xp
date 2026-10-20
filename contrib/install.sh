@@ -10,9 +10,6 @@ layer_dir="$HOME/.local/share/vulkan/implicit_layer.d"
 bin_dir="$HOME/.local/bin"
 unit_dir="$HOME/.config/systemd/user/steamvr.service.d"
 
-# Clean up a pre-rename install (frame-post-fx) first; no-op when there is none.
-[ -f "$src_dir/contrib/migrate-from-frame-post-fx.sh" ] && sh "$src_dir/contrib/migrate-from-frame-post-fx.sh"
-
 cd "$src_dir/layer"
 [ -d build ] || meson setup build --buildtype=release
 ninja -C build
@@ -95,15 +92,5 @@ if [ "${SKIP_PANEL:-0}" != 1 ]; then
   install -m644 "$src_dir/contrib/betterframe-xp-panel.service" "$HOME/.config/systemd/user/betterframe-xp-panel.service"
   systemctl --user daemon-reload
   systemctl --user enable betterframe-xp-panel.service >/dev/null
-fi
-# The old layer was enabled before the migration: enable the new one too (applies at the next SteamVR start).
-migrated_flag="${XDG_RUNTIME_DIR:-/tmp}/betterframe-xp-migrated-enabled"
-if [ -f "$migrated_flag" ]; then
-  "$bin_dir/betterframectl" enable >/dev/null
-  rm -f "$migrated_flag"
-  # SteamVR already runs: bring up the new panel now (the old one was stopped by the migration).
-  if [ "${SKIP_PANEL:-0}" != 1 ] && systemctl --user is-active --quiet steamvr.service; then
-    systemctl --user start betterframe-xp-panel.service || true
-  fi
 fi
 printf 'Installed. Layer is %s.\n' "$("$bin_dir/betterframectl" status | head -1)"
