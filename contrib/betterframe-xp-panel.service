@@ -1,0 +1,15 @@
+[Unit]
+Description=betterframe-xp dashboard panel (sharpen/deband settings for Steam Frame)
+# OpenVR overlay: run only while SteamVR is running
+After=steamvr.service
+PartOf=steamvr.service
+
+[Service]
+ExecStart=%h/.local/bin/betterframe-xp-panel
+Restart=on-failure
+RestartSec=5
+# Never let the panel take time away from the compositor
+Nice=10
+
+[Install]
+WantedBy=steamvr.service

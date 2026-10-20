@@ -1,0 +1,200 @@
+#!/bin/sh
+# betterframe-xp-update check | start | status | install
+#   check    ask GitHub for the newest release and print one line of JSON (the panel's update tab reads it)
+#   start    start the install in its own systemd user unit, so it keeps going if the panel closes
+#   status   print the last install's state as one line of JSON
+#   install  download, check the SHA-256, and run the release's contrib/install.sh (what `start` runs)
+# A release needs betterframe-xp-<version>.tar.gz and SHA256SUMS attached (scripts/package.sh makes both).
+# User space only: no sudo, writes only under ~/.cache/betterframe-xp and the installed files, and it never
+# restarts SteamVR (a new version takes effect at the next SteamVR start).
+# Test overrides: BETTERFRAME_XP_REPO (owner/name), BETTERFRAME_XP_API_URL (any host; plain http allowed).
+set -eu
+
+repo=${BETTERFRAME_XP_REPO:-omuomu0909/betterframe-xp}
+api=${BETTERFRAME_XP_API_URL:-https://api.github.com}
+cache_dir="$HOME/.cache/betterframe-xp"
+work_dir="$cache_dir/update"
+state_file="$cache_dir/update-state.json"
+log_file="$cache_dir/update.log"
+runner="$cache_dir/update-runner.sh"
+unit=betterframe-xp-update.service
+if [ -n "${BETTERFRAME_XP_API_URL:-}" ]; then proto='=https,http'; else proto='=https'; fi
+ver=
+
+current_version() {
+    cat "$HOME/.local/share/betterframe-xp/VERSION" 2>/dev/null || echo 0.0.0
+}
+
+log() {
+    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$log_file"
+}
+
+# The value of KEY from one of our one-line JSON files (values never contain quotes).
+field() { # key file
+    sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p" "$2" 2>/dev/null | head -n 1
+}
+
+write_state() { # state step version error
+    mkdir -p "$cache_dir"
+    printf '{"state":"%s","step":"%s","version":"%s","error":"%s"}\n' "$1" "$2" "$3" "$4" >"$state_file.tmp"
+    mv -f "$state_file.tmp" "$state_file"
+}
+
+fail() { # error code: record it and stop
+    log "failed: $1"
+    write_state failed "" "$ver" "$1"
+    exit 1
+}
+
+error_line() { # error code: the check's answer when GitHub can't give one
+    printf '{"state":"error","current":"%s","error":"%s"}\n' "$(current_version)" "$1"
+}
+
+# Downloads come only from GitHub's pages (a test with BETTERFRAME_XP_API_URL may use any host)
+allowed_url() {
+    [ -n "${BETTERFRAME_XP_API_URL:-}" ] && return 0
+    case $1 in https://github.com/*) return 0 ;; esac
+    return 1
+}
+
+# GitHub's answer (a JSON file) -> one line of JSON for the panel
+summarize() { # current json-file
+    python3 -I - "$1" "$2" <<'PY'
+import json, re, sys
+
+cur, path = sys.argv[1], sys.argv[2]
+
+
+def answer(**fields):
+    print(json.dumps(dict(current=cur, **fields), separators=(",", ":")))
+    sys.exit(0)
+
+
+def numbers(v):
+    return tuple(int(x) for x in v.split("."))
+
+
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+except (OSError, ValueError):
+    answer(state="error", error="bad-response")
+if not isinstance(data, dict):
+    answer(state="error", error="bad-response")
+tag = str(data.get("tag_name", ""))
+ver = tag[1:] if tag[:1] in ("v", "V") else tag
+if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", ver):
+    answer(state="error", error="bad-version")
+try:
+    newer = numbers(ver) > numbers(cur)
+except ValueError:
+    answer(state="error", error="bad-version")
+assets = {a.get("name"): a.get("browser_download_url", "") for a in data.get("assets", []) if isinstance(a, dict)}
+tar_url = assets.get(f"betterframe-xp-{ver}.tar.gz", "")
+sums_url = assets.get("SHA256SUMS", "")
+answer(state="available" if newer else "uptodate", latest=ver, url=str(data.get("html_url", "")),
+       installable="yes" if tar_url and sums_url else "no", tar_url=tar_url, sums_url=sums_url)
+PY
+}
+
+check() {
+    mkdir -p "$cache_dir"
+    code=$(curl -sS --max-time 12 --proto "$proto" -H 'Accept: application/vnd.github+json' \
+        -o "$cache_dir/latest.json" -w '%{http_code}' "$api/repos/$repo/releases/latest" 2>/dev/null) || code=000
+    case $code in
+        200) summarize "$(current_version)" "$cache_dir/latest.json" ;;
+        404) error_line not-found ;;
+        403 | 429) error_line rate-limited ;;
+        000) error_line network ;;
+        *) error_line other ;;
+    esac
+}
+
+start() {
+    mkdir -p "$cache_dir"
+    if systemctl --user is-active --quiet "$unit" 2>/dev/null; then
+        echo '{"state":"error","error":"busy"}'
+        return 0
+    fi
+    # The unit runs a copy: install.sh replaces this script in ~/.local/libexec while it runs
+    cp "$0" "$runner"
+    # State first: the unit may finish (and write its own state) before systemd-run returns
+    write_state running start "" ""
+    # Nice=19: the build runs on the headset, and this keeps it from taking CPU from a game
+    if systemd-run --user --unit=betterframe-xp-update --collect --quiet -p Nice=19 sh "$runner" install >/dev/null 2>&1; then
+        echo '{"state":"started"}'
+    else
+        write_state failed "" "" detach-failed
+        echo '{"state":"error","error":"detach-failed"}'
+    fi
+}
+
+status() {
+    if [ ! -f "$state_file" ]; then
+        echo '{"state":"idle"}'
+        return 0
+    fi
+    # A "running" state whose unit is gone was cut short (power, a killed unit)
+    if [ "$(field state "$state_file")" = running ] && ! systemctl --user is-active --quiet "$unit" 2>/dev/null; then
+        printf '{"state":"failed","step":"","version":"%s","error":"interrupted"}\n' "$(field version "$state_file")"
+        return 0
+    fi
+    cat "$state_file"
+}
+
+install() {
+    rm -rf "$work_dir"
+    mkdir -p "$work_dir"
+    : >"$log_file"
+    log "update started (installed $(current_version))"
+    check >"$work_dir/check.json" || fail other
+    state=$(field state "$work_dir/check.json")
+    ver=$(field latest "$work_dir/check.json")
+    if [ "$state" = uptodate ]; then
+        # Nothing newer to install: not a failure, so leave no state behind
+        log "already up to date"
+        rm -f "$state_file"
+        return 0
+    fi
+    if [ "$state" != available ]; then
+        code=$(field error "$work_dir/check.json")
+        fail "${code:-other}"
+    fi
+    [ "$(field installable "$work_dir/check.json")" = yes ] || fail no-checksums
+    tar_url=$(field tar_url "$work_dir/check.json")
+    sums_url=$(field sums_url "$work_dir/check.json")
+    allowed_url "$tar_url" && allowed_url "$sums_url" || fail bad-url
+
+    tarball="betterframe-xp-$ver.tar.gz"
+    write_state running download "$ver" ""
+    log "downloading $tarball"
+    curl -fsSL --max-time 600 --proto "$proto" -o "$work_dir/$tarball" "$tar_url" >>"$log_file" 2>&1 || fail download-failed
+    curl -fsSL --max-time 60 --proto "$proto" -o "$work_dir/SHA256SUMS" "$sums_url" >>"$log_file" 2>&1 || fail download-failed
+
+    write_state running verify "$ver" ""
+    # "<hash>  <name>" (text) or "<hash> *<name>" (binary mark): take the hash of our file's line
+    want=$(awk -v n="$tarball" '{ f = $2; sub(/^\*/, "", f); if (f == n) { print $1; exit } }' "$work_dir/SHA256SUMS")
+    [ -n "$want" ] || fail no-checksums
+    printf '%s  %s\n' "$want" "$tarball" | (cd "$work_dir" && sha256sum -c -) >>"$log_file" 2>&1 || fail checksum-mismatch
+    if tar -tzf "$work_dir/$tarball" | grep -E -q '^/|(^|/)\.\.(/|$)'; then fail unsafe-archive; fi
+
+    write_state running extract "$ver" ""
+    mkdir -p "$work_dir/src"
+    tar -xzf "$work_dir/$tarball" -C "$work_dir/src" >>"$log_file" 2>&1 || fail extract-failed
+    [ -f "$work_dir/src/contrib/install.sh" ] || fail no-installer
+
+    write_state running install "$ver" ""
+    log "running install.sh"
+    sh "$work_dir/src/contrib/install.sh" >>"$log_file" 2>&1 || fail install-failed
+    log "installed $ver"
+    write_state done "" "$ver" ""
+    rm -rf "$work_dir/src"
+}
+
+case "${1:-status}" in
+    check) check ;;
+    start) start ;;
+    status) status ;;
+    install) install ;;
+    *) echo "usage: betterframe-xp-update check|start|status|install" >&2; exit 2 ;;
+esac

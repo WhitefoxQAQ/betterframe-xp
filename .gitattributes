@@ -1,0 +1,3 @@
+# Frame (Linux) で動かすファイルなので、どこで取り出しても改行は LF にする
+* text=auto eol=lf
+*.png binary

@@ -1,0 +1,70 @@
+#!/bin/sh
+# betterframe-xp-guard start|stop
+#
+# Called from the steamvr.service drop-in written by `betterframectl enable`:
+#   ExecCondition=<this> start     (before SteamVR starts)
+#   ExecStopPost=-<this> stop      (after SteamVR stops; $SERVICE_RESULT is set by systemd)
+#
+# If SteamVR dies within 10 s of starting, `limit` times in a row, the layer is switched off by
+# renaming vulkan.env to vulkan.env.disabled. The drop-in stays, so the next start simply has no
+# ENABLE_BETTERFRAME_XP and the Vulkan loader skips the layer. Valve's steamvr-health-check boots the
+# previous OS slot after 4 failed starts in a row; limit 2 keeps us well below that.
+#
+# SAFETY: `start` runs as ExecCondition. Any exit status 1..254 makes systemd SKIP SteamVR without
+# error, so `start` must always exit 0. Do not add `set -e` or a non-zero exit to the start path.
+# The guard never restarts SteamVR.
+set -u
+
+conf_dir="$HOME/.config/betterframe-xp"
+envfile="$conf_dir/vulkan.env"
+disabled="$envfile.disabled"
+note="$conf_dir/guard-disabled"
+state_dir="${XDG_RUNTIME_DIR:-/tmp}/betterframe-xp-guard"
+started="$state_dir/started"
+failures="$state_dir/failures"
+limit=2
+short_secs=10
+
+case "${1:-}" in
+    start)
+        if [ -f "$envfile" ]; then
+            mkdir -p "$state_dir" 2>/dev/null && date +%s > "$started" 2>/dev/null
+        else
+            rm -f "$started" "$failures" 2>/dev/null
+        fi
+        exit 0
+        ;;
+    stop)
+        # Layer was not enabled for this run: nothing to judge.
+        if [ ! -f "$envfile" ]; then rm -f "$started" "$failures"; exit 0; fi
+        [ -r "$started" ] || exit 0
+        read -r t0 < "$started" || exit 0
+        case "$t0" in *[!0-9]*|'') exit 0 ;; esac
+        elapsed=$(( $(date +%s) - t0 ))
+        rm -f "$started"
+        result="${SERVICE_RESULT:-}"
+        if [ "$result" = success ]; then
+            rm -f "$failures"       # clean stop (user restart / shutdown)
+        elif [ -n "$result" ] && [ "$elapsed" -lt "$short_secs" ]; then
+            n=$(cat "$failures" 2>/dev/null || true)
+            case "$n" in *[!0-9]*|'') n=0 ;; esac
+            n=$((n + 1))
+            if [ "$n" -ge "$limit" ]; then
+                mv -f "$envfile" "$disabled"
+                rm -f "$failures"
+                printf '%s: disabled after %s failed SteamVR start(s); last result %s after %ss\n' \
+                    "$(date '+%F %T')" "$n" "$result" "$elapsed" > "$note"
+                echo "betterframe-xp: layer disabled after $n failed SteamVR start(s) (result $result, ${elapsed}s). Re-enable: betterframectl enable" >&2
+            else
+                echo "$n" > "$failures"
+                echo "betterframe-xp: SteamVR start failure $n/$limit; layer stays enabled" >&2
+            fi
+        else
+            rm -f "$failures"       # long session or no result: not a start failure
+        fi
+        ;;
+    *)
+        echo 'usage: betterframe-xp-guard start|stop' >&2
+        exit 2
+        ;;
+esac

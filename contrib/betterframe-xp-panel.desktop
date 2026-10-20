@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=BetterFrame XP
+Name[ja]=BetterFrame XP（画質パネル）
+Comment=BetterFrame XP panel in the SteamVR dashboard. Does nothing if it is already running.
+Comment[ja]=SteamVR のダッシュボードに BetterFrame XP のパネルを出す。すでに動いているときは何もしない
+# 次の Exec の値は、インストールのときに実行ファイルの絶対パスに置き換える（Steam から起動されると PATH に ~/.local/bin が無いことがある）
+Exec=@BINARY@
+Icon=betterframe-xp-panel
+Terminal=false
+Categories=Utility;

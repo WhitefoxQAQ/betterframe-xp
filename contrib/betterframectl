@@ -1,0 +1,148 @@
+#!/bin/sh
+# betterframectl enable|disable|status|stats|panel-on|panel-off|set KEY VALUE|off|on
+#                gaze [reproj|eye on|off]|uninstall [--skip-gaze]
+# enable/disable only take effect at the next SteamVR start (this script never
+# restarts SteamVR). set/off/on are applied live within ~0.25 s.
+set -eu
+
+conf="$HOME/.config/betterframe-xp/params.conf"
+dropin="$HOME/.config/systemd/user/steamvr.service.d/91-betterframe-xp.conf"
+envfile="$HOME/.config/betterframe-xp/vulkan.env"
+guard="$HOME/.local/libexec/betterframe-xp-guard"
+guard_note="$HOME/.config/betterframe-xp/guard-disabled"
+log="${XDG_RUNTIME_DIR:-/tmp}/betterframe-xp.log"
+# SteamVR's eye-tracking corrections (not part of this layer; the panel and `gaze` write them).
+# gaze-before.conf keeps the value each key had before we first changed it, so uninstall can restore it.
+vrcmd=/opt/steamvr/bin/linuxarm64/vrcmd
+gaze_record="$HOME/.config/betterframe-xp/gaze-before.conf"
+gaze_keys='gazeDepReprojectEnable gazeDepEyeToHeadEnable'
+
+# gaze_read KEY -> prints 1 or 0 (empty if SteamVR is not running / unreadable)
+gaze_read() {
+    pgrep -x vrserver >/dev/null 2>&1 || return 0
+    v=$(timeout 15 "$vrcmd" --settings-bool "steamvr.$1" 2>/dev/null | tail -n 1 | sed -n 's/^.*=//p')
+    case "$v" in true) echo 1 ;; false) echo 0 ;; esac
+}
+# gaze_write KEY 1|0 : writes through the running vrserver (vrcmd takes 1/0, not true/false)
+gaze_write() {
+    timeout 15 "$vrcmd" --set-settings-bool "steamvr.$1" "$2" >/dev/null 2>&1
+}
+
+case "${1:-status}" in
+    enable)
+        printf 'ENABLE_BETTERFRAME_XP=1\nBETTERFRAME_XP_LOG_LEVEL=info\nBETTERFRAME_XP_LOG_FILE=%s\n' "$log" > "$envfile"
+        rm -f "$envfile.disabled" "$guard_note"
+        # The guard turns the layer off again if SteamVR keeps failing to start (see betterframe-xp-guard).
+        # The "-" prefixes make a missing or failing guard harmless: it must never stop SteamVR from starting.
+        printf '[Service]\nEnvironmentFile=-%s\nExecCondition=-%s start\nExecStopPost=-%s stop\n' "$envfile" "$guard" "$guard" > "$dropin"
+        systemctl --user daemon-reload
+        echo 'enabled (restart SteamVR to apply)'
+        ;;
+    disable)
+        rm -f "$dropin" "$envfile" "$envfile.disabled" "$guard_note"
+        systemctl --user daemon-reload
+        echo 'disabled (restart SteamVR to apply)'
+        ;;
+    status)
+        if [ -f "$guard_note" ]; then
+            echo "disabled by guard: $(cat "$guard_note")"
+            echo 'fix the cause, then: betterframectl enable'
+        elif [ -f "$dropin" ]; then echo enabled; else echo disabled; fi
+        pid=$(pgrep -x vrcompositor | head -1 || true)
+        if [ -n "$pid" ] && grep -q libbetterframexp "/proc/$pid/maps" 2>/dev/null; then
+            echo "loaded in vrcompositor (pid $pid)"
+        else
+            echo 'not loaded in a running vrcompositor'
+        fi
+        panel_state=$(systemctl --user is-enabled betterframe-xp-panel.service 2>/dev/null || true)
+        case "$panel_state" in
+            enabled) echo 'panel: enabled (shows in the SteamVR dashboard)' ;;
+            '') echo 'panel: not installed' ;;
+            *) echo "panel: NOT enabled ($panel_state), so it will not show in the dashboard. Fix: betterframectl panel-on" ;;
+        esac
+        [ -f "$log" ] && tail -3 "$log" || true
+        ;;
+    set)
+        key=${2:?key}; value=${3:?value}
+        tmp="$conf.tmp"
+        grep -v "^[[:space:]]*$key[[:space:]]*=" "$conf" > "$tmp" || true
+        printf '%s = %s\n' "$key" "$value" >> "$tmp"
+        mv -f "$tmp" "$conf"
+        echo "$key = $value"
+        ;;
+    stats)
+        cat "${XDG_RUNTIME_DIR:-/tmp}/betterframe-xp/stats" 2>/dev/null || echo 'no stats (layer not running)'
+        ;;
+    panel-on)
+        systemctl --user enable betterframe-xp-panel.service
+        echo 'panel enabled (starts with SteamVR; start now: systemctl --user start betterframe-xp-panel)'
+        ;;
+    panel-off)
+        systemctl --user disable --now betterframe-xp-panel.service
+        echo 'panel disabled (it will not show in the dashboard until: betterframectl panel-on)'
+        ;;
+    gaze)
+        # gaze                     show the current values
+        # gaze reproj|eye on|off   switch one (depth = reproj, eye position = eye)
+        if [ -z "${2:-}" ]; then
+            for k in $gaze_keys; do
+                v=$(gaze_read "$k")
+                echo "steamvr.$k = ${v:-unknown (SteamVR is not running)}"
+            done
+            [ -f "$gaze_record" ] && echo "values before the first change: $(tr '
+' ' ' < "$gaze_record")" || true
+            exit 0
+        fi
+        case "$2" in reproj) key=gazeDepReprojectEnable ;; eye) key=gazeDepEyeToHeadEnable ;;
+            *) echo 'usage: betterframectl gaze [reproj|eye on|off]' >&2; exit 2 ;; esac
+        case "${3:-}" in on) val=1 ;; off) val=0 ;;
+            *) echo 'usage: betterframectl gaze [reproj|eye on|off]' >&2; exit 2 ;; esac
+        before=$(gaze_read "$key")
+        [ -n "$before" ] || { echo 'SteamVR (vrserver) is not running; start it first' >&2; exit 1; }
+        # remember the very first value, once
+        if ! grep -q "^$key[[:space:]]*=" "$gaze_record" 2>/dev/null; then
+            printf '%s = %s
+' "$key" "$before" >> "$gaze_record"
+        fi
+        gaze_write "$key" "$val" || { echo "write failed: steamvr.$key" >&2; exit 1; }
+        echo "steamvr.$key = $val (was $before). Saved in SteamVR's settings; restart SteamVR if it has no effect"
+        ;;
+    uninstall)
+        # Restores SteamVR's eye-tracking corrections to the values they had before we first changed them,
+        # then removes everything this tool installed. Never restarts SteamVR.
+        if [ -f "$gaze_record" ] && [ "${2:-}" != --skip-gaze ]; then
+            if ! pgrep -x vrserver >/dev/null 2>&1; then
+                echo 'The eye-tracking corrections were changed ('"$(tr '
+' ' ' < "$gaze_record")"').' >&2
+                echo 'Start SteamVR, then run this again so they can be restored.' >&2
+                echo 'To remove without restoring them: betterframectl uninstall --skip-gaze' >&2
+                exit 1
+            fi
+            while IFS='=' read -r k v; do
+                k=$(echo "$k" | tr -d ' '); v=$(echo "$v" | tr -d ' ')
+                case "$k" in gazeDepReprojectEnable|gazeDepEyeToHeadEnable) ;; *) continue ;; esac
+                case "$v" in 0|1) ;; *) continue ;; esac
+                if gaze_write "$k" "$v"; then echo "restored steamvr.$k = $v"
+                else echo "could not restore steamvr.$k (left as is)" >&2; exit 1; fi
+            done < "$gaze_record"
+        fi
+        systemctl --user disable --now betterframe-xp-panel.service 2>/dev/null || true
+        rm -f "$dropin" "$envfile" "$envfile.disabled" "$guard_note"               "$HOME/.config/systemd/user/betterframe-xp-panel.service"               "$HOME/.local/share/vulkan/implicit_layer.d/betterframe-xp.json"               "$HOME/.local/bin/betterframe-xp-panel" "$guard" "$HOME/.local/libexec/betterframe-xp-update"
+        rm -rf "$HOME/.local/share/betterframe-xp" "$HOME/.config/betterframe-xp"
+        # entry for the dashboard's "+" list
+        data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+        rm -f "$data_home/applications/betterframe-xp-panel.desktop"
+        for size in 48 128 256; do rm -f "$data_home/icons/hicolor/${size}x${size}/apps/betterframe-xp-panel.png"; done
+        if command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database "$data_home/applications" 2>/dev/null || true; fi
+        systemctl --user daemon-reload
+        echo 'uninstalled (a running SteamVR keeps the layer loaded until it restarts)'
+        rm -f "$HOME/.local/bin/betterframectl"
+        exit 0
+        ;;
+    off) exec "$0" set enabled 0 ;;
+    on)  exec "$0" set enabled 1 ;;
+    *)
+        echo 'usage: betterframectl enable|disable|status|stats|panel-on|panel-off|set KEY VALUE|off|on|gaze|uninstall' >&2
+        exit 2
+        ;;
+esac
